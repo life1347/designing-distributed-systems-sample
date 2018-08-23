@@ -1,0 +1,53 @@
+# for old k8s cluster: 
+# apiVersion: extensions/v1beta1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sidecar-ssl-termination-demo
+  namespace: default
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: python-server
+        image: trinitronx/python-simplehttpserver
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "echo Hello World > /var/www/index.html"]
+      - name: ssl-termination-proxy
+        image: tachingchen/nginx-ssl-proxy
+        env:
+        - name: ENABLE_SSL
+          value: "true"
+        - name: TARGET_SERVICE
+          value: "127.0.0.1:8080"
+        volumeMounts:
+        - name: ssl-cert
+          mountPath: /etc/secrets/
+      volumes:
+      - name: ssl-cert
+        secret:
+          secretName: ssl-crt
+          items:
+          - key: nginx.crt
+            path: proxycert
+          - key: nginx.key
+            path: proxykey
+          - key: dhparam.pem
+            path: dhparam
